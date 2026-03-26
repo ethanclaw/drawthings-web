@@ -852,23 +852,49 @@
                     body: JSON.stringify(payload)
                 }).then(r => r.json());
 
-                clearInterval(interval);
-                fill.style.width = '100%';
-
-                if (res.status === 'success') {
-                    showToast(`${t('toast_success')}: ${res.filename}`);
-                    document.getElementById('prompt').value = '';
-                    loadGallery();
+                if (res.job_id) {
+                    text.textContent = 'Task submitted, processing...';
+                    text.dataset.jobId = res.job_id;
+                    
+                    const pollInterval = setInterval(async () => {
+                        const jobRes = await fetch(`/api/job/${res.job_id}`).then(r => r.json());
+                        if (jobRes.status === 'completed') {
+                            clearInterval(pollInterval);
+                            clearInterval(interval);
+                            fill.style.width = '100%';
+                            showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
+                            document.getElementById('prompt').value = '';
+                            loadGallery();
+                            btn.disabled = false;
+                            progress.style.display = 'none';
+                        } else if (jobRes.status === 'failed') {
+                            clearInterval(pollInterval);
+                            clearInterval(interval);
+                            showToast(jobRes.error || t('toast_failed'), 'error');
+                            btn.disabled = false;
+                            progress.style.display = 'none';
+                        } else {
+                            text.textContent = `Processing... ${jobRes.status}`;
+                        }
+                    }, 2000);
                 } else {
-                    showToast(res.detail || t('toast_failed'), 'error');
+                    clearInterval(interval);
+                    if (res.status === 'success') {
+                        showToast(`${t('toast_success')}: ${res.filename}`);
+                        document.getElementById('prompt').value = '';
+                        loadGallery();
+                    } else {
+                        showToast(res.detail || t('toast_failed'), 'error');
+                    }
+                    btn.disabled = false;
+                    setTimeout(() => progress.style.display = 'none', 1000);
                 }
             } catch (err) {
                 clearInterval(interval);
                 showToast(t('toast_server_error'), 'error');
+                btn.disabled = false;
+                progress.style.display = 'none';
             }
-
-            btn.disabled = false;
-            setTimeout(() => progress.style.display = 'none', 1000);
         }
 
         async function loadGallery() {
@@ -980,23 +1006,48 @@
                     body: JSON.stringify(payload)
                 }).then(r => r.json());
 
-                clearInterval(interval);
-                fill.style.width = '100%';
-
-                if (res.status === 'success') {
-                    showToast(`${t('toast_success')}: ${res.filename}`);
-                    document.getElementById('prompt2').value = '';
-                    loadGallery();
+                if (res.job_id) {
+                    text.textContent = 'Task submitted, processing...';
+                    
+                    const pollInterval = setInterval(async () => {
+                        const jobRes = await fetch(`/api/job/${res.job_id}`).then(r => r.json());
+                        if (jobRes.status === 'completed') {
+                            clearInterval(pollInterval);
+                            clearInterval(interval);
+                            fill.style.width = '100%';
+                            showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
+                            document.getElementById('prompt2').value = '';
+                            loadGallery();
+                            btn.disabled = false;
+                            progress.style.display = 'none';
+                        } else if (jobRes.status === 'failed') {
+                            clearInterval(pollInterval);
+                            clearInterval(interval);
+                            showToast(jobRes.error || t('toast_img2img_failed'), 'error');
+                            btn.disabled = false;
+                            progress.style.display = 'none';
+                        } else {
+                            text.textContent = `Processing... ${jobRes.status}`;
+                        }
+                    }, 2000);
                 } else {
-                    showToast(res.detail || t('toast_img2img_failed'), 'error');
+                    clearInterval(interval);
+                    if (res.status === 'success') {
+                        showToast(`${t('toast_success')}: ${res.filename}`);
+                        document.getElementById('prompt2').value = '';
+                        loadGallery();
+                    } else {
+                        showToast(res.detail || t('toast_img2img_failed'), 'error');
+                    }
+                    btn.disabled = false;
+                    setTimeout(() => progress.style.display = 'none', 1000);
                 }
             } catch (err) {
                 clearInterval(interval);
                 showToast(t('toast_server_error'), 'error');
+                btn.disabled = false;
+                progress.style.display = 'none';
             }
-
-            btn.disabled = false;
-            setTimeout(() => progress.style.display = 'none', 1000);
         }
 
         loadConfig().then(() => { checkHealth(); loadModels(); applyI18n(); });

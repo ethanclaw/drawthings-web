@@ -155,6 +155,34 @@ app.delete('/api/image/*', (req, res) => {
     proxyReq.end();
 });
 
+app.get('/api/job/:job_id', (req, res) => {
+    http.get(`http://localhost:8000/api/job/${req.params.job_id}`, (apiRes) => {
+        let data = '';
+        apiRes.on('data', chunk => data += chunk);
+        apiRes.on('end', () => {
+            try {
+                res.status(apiRes.statusCode).json(JSON.parse(data));
+            } catch {
+                res.status(apiRes.statusCode).send(data);
+            }
+        });
+    }).on('error', () => res.status(500).json({ error: 'Backend error' }));
+});
+
+app.get('/api/jobs', (req, res) => {
+    http.get('http://localhost:8000/api/jobs', (apiRes) => {
+        let data = '';
+        apiRes.on('data', chunk => data += chunk);
+        apiRes.on('end', () => {
+            try {
+                res.json(JSON.parse(data));
+            } catch {
+                res.status(500).json([]);
+            }
+        });
+    }).on('error', () => res.json([]));
+});
+
 app.listen(PORT, () => {
     console.log(`Draw Things Web running at http://localhost:${PORT}`);
     console.log(`FastAPI backend should be running on port 8000`);

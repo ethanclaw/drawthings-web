@@ -2,14 +2,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime
 import httpx
+import asyncio
 import os
 import json
 import uuid
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 app = FastAPI()
 CONFIG_FILE = "config.json"
+executor = ThreadPoolExecutor(max_workers=3)
+
+jobs = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -109,6 +115,64 @@ async def get_samplers():
     ]
     return {"samplers": samplers}
 
+def run_generate_sync(job_id: str, req_data: dict):
+    import base64
+    try:
+        payload = {
+            "prompt": req_data["prompt"],
+            "negative_prompt": req_data.get("negative_prompt", ""),
+            "seed": req_data.get("seed", -1),
+            "width": req_data.get("width", 1024),
+            "height": req_data.get("height", 1024),
+            "steps": req_data.get("steps", 8),
+            "guidance_scale": req_data.get("guidance_scale", 1.0),
+            "sampler": req_data.get("sampler", "UniPC Trailing"),
+            "batch_count": req_data.get("batch_count", 1)
+        }
+        if req_data.get("model"):
+            payload["model"] = req_data["model"]
+
+        jobs[job_id]["status"] = "processing"
+        
+        with httpx.Client(timeout=300.0) as client:
+            response = client.post(
+                f"{config['api_base']}/sdapi/v1/txt2img",
+                json=payload
+            )
+
+            if response.status_code != 200:
+                jobs[job_id]["status"] = "failed"
+                jobs[job_id]["error"] = response.text
+                return
+
+            result = response.json()
+
+            if "images" in result and len(result["images"]) > 0:
+                image_data = result["images"][0]
+                filename = f"drawthings_{uuid.uuid4().hex[:8]}.png"
+                filepath = os.path.join(req_data["output_path"], filename)
+
+                img_bytes = base64.b64decode(image_data)
+                with open(filepath, "wb") as f:
+                    f.write(img_bytes)
+
+                jobs[job_id]["status"] = "completed"
+                jobs[job_id]["result"] = {
+                    "filename": filename,
+                    "filepath": filepath,
+                    "url": f"/api/image/{filename}"
+                }
+            else:
+                jobs[job_id]["status"] = "failed"
+                jobs[job_id]["error"] = "No image in response"
+
+    except httpx.ConnectError:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = "Cannot connect to Draw Things API"
+    except Exception as e:
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
+
 @app.post("/api/generate")
 async def generate_image(req: GenerateRequest):
     if not req.prompt:
@@ -118,56 +182,95 @@ async def generate_image(req: GenerateRequest):
     output_path = os.path.join(output_path, "txt2img")
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
-    payload = {
+    job_id = str(uuid.uuid4())[:8]
+    req_data = req.model_dump()
+    req_data["output_path"] = output_path
+    
+    jobs[job_id] = {
+        "status": "pending",
+        "type": "txt2img",
         "prompt": req.prompt,
-        "negative_prompt": req.negative_prompt,
-        "seed": req.seed,
-        "width": req.width,
-        "height": req.height,
-        "steps": req.steps,
-        "guidance_scale": req.guidance_scale,
-        "sampler": req.sampler,
-        "batch_count": req.batch_count
+        "created": datetime.now().isoformat(),
+        "result": None,
+        "error": None
     }
 
-    if req.model:
-        payload["model"] = req.model
+    executor.submit(run_generate_sync, job_id, req_data)
 
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "message": "Task submitted, use /api/job/{job_id} to check status"
+    }
+
+@app.get("/api/job/{job_id}")
+async def get_job_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return jobs[job_id]
+
+@app.get("/api/jobs")
+async def list_jobs():
+    return list(jobs.values())[-20:]
+
+def run_img2img_sync(job_id: str, req_data: dict):
+    import base64
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.post(
-                f"{config['api_base']}/sdapi/v1/txt2img",
+        payload = {
+            "prompt": req_data["prompt"],
+            "negative_prompt": req_data.get("negative_prompt", ""),
+            "init_images": [req_data["image"]],
+            "denoising_strength": req_data.get("denoising_strength", 0.6),
+            "seed": req_data.get("seed", -1),
+            "width": req_data.get("width", 1024),
+            "height": req_data.get("height", 1024),
+            "steps": req_data.get("steps", 8),
+            "guidance_scale": req_data.get("guidance_scale", 1.0),
+            "sampler": req_data.get("sampler", "UniPC Trailing")
+        }
+        if req_data.get("model"):
+            payload["model"] = req_data["model"]
+
+        jobs[job_id]["status"] = "processing"
+        
+        with httpx.Client(timeout=300.0) as client:
+            response = client.post(
+                f"{config['api_base']}/sdapi/v1/img2img",
                 json=payload
             )
 
             if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
+                jobs[job_id]["status"] = "failed"
+                jobs[job_id]["error"] = response.text
+                return
 
             result = response.json()
 
             if "images" in result and len(result["images"]) > 0:
                 image_data = result["images"][0]
-                filename = f"drawthings_{uuid.uuid4().hex[:8]}.png"
-                filepath = os.path.join(output_path, filename)
+                filename = f"drawthings_img2img_{uuid.uuid4().hex[:8]}.png"
+                filepath = os.path.join(req_data["output_path"], filename)
 
-                import base64
                 img_bytes = base64.b64decode(image_data)
                 with open(filepath, "wb") as f:
                     f.write(img_bytes)
 
-                return {
-                    "status": "success",
+                jobs[job_id]["status"] = "completed"
+                jobs[job_id]["result"] = {
                     "filename": filename,
                     "filepath": filepath,
                     "url": f"/api/image/{filename}"
                 }
             else:
-                raise HTTPException(status_code=500, detail="No image in response")
+                jobs[job_id]["status"] = "failed"
+                jobs[job_id]["error"] = "No image in response"
 
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Cannot connect to Draw Things API. Make sure it's running on this device.")
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = "Cannot connect to Draw Things API"
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
 
 @app.post("/api/img2img")
 async def img2img(req: Img2ImgRequest):
@@ -180,57 +283,26 @@ async def img2img(req: Img2ImgRequest):
     output_path = os.path.join(output_path, "img2img")
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
-    payload = {
+    job_id = str(uuid.uuid4())[:8]
+    req_data = req.model_dump()
+    req_data["output_path"] = output_path
+
+    jobs[job_id] = {
+        "status": "pending",
+        "type": "img2img",
         "prompt": req.prompt,
-        "negative_prompt": req.negative_prompt,
-        "init_images": [req.image],
-        "denoising_strength": req.denoising_strength,
-        "seed": req.seed,
-        "width": req.width,
-        "height": req.height,
-        "steps": req.steps,
-        "guidance_scale": req.guidance_scale,
-        "sampler": req.sampler
+        "created": datetime.now().isoformat(),
+        "result": None,
+        "error": None
     }
 
-    if req.model:
-        payload["model"] = req.model
+    executor.submit(run_img2img_sync, job_id, req_data)
 
-    try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.post(
-                f"{config['api_base']}/sdapi/v1/img2img",
-                json=payload
-            )
-
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
-
-            result = response.json()
-
-            if "images" in result and len(result["images"]) > 0:
-                image_data = result["images"][0]
-                filename = f"drawthings_img2img_{uuid.uuid4().hex[:8]}.png"
-                filepath = os.path.join(output_path, filename)
-
-                import base64
-                img_bytes = base64.b64decode(image_data)
-                with open(filepath, "wb") as f:
-                    f.write(img_bytes)
-
-                return {
-                    "status": "success",
-                    "filename": filename,
-                    "filepath": filepath,
-                    "url": f"/api/image/{filename}"
-                }
-            else:
-                raise HTTPException(status_code=500, detail="No image in response")
-
-    except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Cannot connect to Draw Things API. Make sure it's running on this device.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "message": "Task submitted, use /api/job/{job_id} to check status"
+    }
 
 @app.get("/api/image/{filepath}")
 async def get_image(filepath: str):
