@@ -31,6 +31,20 @@ class GenerateRequest(BaseModel):
     model: str = ""
     batch_count: int = 1
 
+class Img2ImgRequest(BaseModel):
+    prompt: str
+    negative_prompt: str = ""
+    image: str
+    denoising_strength: float = 0.6
+    seed: int = -1
+    output_path: str = ""
+    width: int = 1024
+    height: int = 1024
+    steps: int = 8
+    guidance_scale: float = 1.0
+    sampler: str = "UniPC Trailing"
+    model: str = ""
+
 class ConfigRequest(BaseModel):
     output_path: str
     api_base: str = "http://localhost:7860"
@@ -114,6 +128,68 @@ async def generate_image(req: GenerateRequest):
             if "images" in result and len(result["images"]) > 0:
                 image_data = result["images"][0]
                 filename = f"drawthings_{uuid.uuid4().hex[:8]}.png"
+                filepath = os.path.join(output_path, filename)
+
+                import base64
+                img_bytes = base64.b64decode(image_data)
+                with open(filepath, "wb") as f:
+                    f.write(img_bytes)
+
+                return {
+                    "status": "success",
+                    "filename": filename,
+                    "filepath": filepath,
+                    "url": f"/api/image/{filename}"
+                }
+            else:
+                raise HTTPException(status_code=500, detail="No image in response")
+
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to Draw Things API. Make sure it's running on this device.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/img2img")
+async def img2img(req: Img2ImgRequest):
+    if not req.prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+    if not req.image:
+        raise HTTPException(status_code=400, detail="Image is required")
+
+    output_path = req.output_path or config["output_path"]
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "prompt": req.prompt,
+        "negative_prompt": req.negative_prompt,
+        "init_images": [req.image],
+        "denoising_strength": req.denoising_strength,
+        "seed": req.seed,
+        "width": req.width,
+        "height": req.height,
+        "steps": req.steps,
+        "guidance_scale": req.guidance_scale,
+        "sampler": req.sampler
+    }
+
+    if req.model:
+        payload["model"] = req.model
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(
+                f"{config['api_base']}/sdapi/v1/img2img",
+                json=payload
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+
+            result = response.json()
+
+            if "images" in result and len(result["images"]) > 0:
+                image_data = result["images"][0]
+                filename = f"drawthings_img2img_{uuid.uuid4().hex[:8]}.png"
                 filepath = os.path.join(output_path, filename)
 
                 import base64

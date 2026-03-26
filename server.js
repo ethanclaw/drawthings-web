@@ -92,6 +92,29 @@ app.post('/api/generate', (req, res) => {
     });
 });
 
+app.post('/api/img2img', (req, res) => {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+        const options = {
+            hostname: 'localhost',
+            port: 8000,
+            path: '/api/img2img',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }
+        };
+        const proxyReq = http.request(options, (proxyRes) => {
+            let data = '';
+            proxyRes.on('data', chunk => data += chunk);
+            proxyRes.on('end', () => {
+                res.status(proxyRes.statusCode).json(JSON.parse(data));
+            });
+        });
+        proxyReq.write(body);
+        proxyReq.end();
+    });
+});
+
 app.get('/api/image/:filename', (req, res) => {
     http.get(`http://localhost:8000/api/image/${req.params.filename}`, (apiRes) => {
         res.setHeader('Content-Type', apiRes.headers['content-type'] || 'image/png');

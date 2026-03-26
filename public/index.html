@@ -269,6 +269,21 @@
         .advanced-panel.show {
             display: block;
         }
+        .upload-area {
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #00d4ff;
+        }
+        .upload-placeholder {
+            color: #666;
+            font-size: 0.9rem;
+        }
         .lang-toggle {
             position: fixed;
             top: 15px;
@@ -294,6 +309,7 @@
 
         <div class="tab-bar">
             <div class="tab active" data-tab="generate" data-i18n="tab_generate">生成</div>
+            <div class="tab" data-tab="img2img" data-i18n="tab_img2img">图生图</div>
             <div class="tab" data-tab="gallery" data-i18n="tab_gallery">画廊</div>
             <div class="tab" data-tab="settings" data-i18n="tab_settings">设置</div>
         </div>
@@ -397,6 +413,97 @@
             </div>
         </div>
 
+        <div id="tab-img2img" class="tab-content">
+            <div class="card">
+                <div class="status-bar">
+                    <div class="status-dot" id="statusDot2"></div>
+                    <span id="statusText2" data-i18n="status_checking">检测连接中...</span>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_upload_image">上传图片</label>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+                        <div class="upload-placeholder" onclick="document.getElementById('imageInput').click()">
+                            <span data-i18n="placeholder_upload">点击选择图片或拖拽到此处</span>
+                        </div>
+                        <img id="previewImage" style="display:none;max-width:100%;border-radius:8px;margin-top:10px;" onclick="document.getElementById('imageInput').click()">
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_prompt">提示词</label>
+                    <textarea id="prompt2" data-i18n-placeholder="placeholder_prompt" placeholder="A beautiful landscape with mountains..."></textarea>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_negative_prompt">反向提示词</label>
+                    <input type="text" id="negativePrompt2" data-i18n-placeholder="placeholder_negative" placeholder="blurry, low quality...">
+                </div>
+
+                <div class="config-section">
+                    <div class="label-row">
+                        <label data-i18n="label_denoising">变化强度</label>
+                        <span id="denoisingValue">0.6</span>
+                    </div>
+                    <input type="range" id="denoisingStrength" min="0.1" max="0.9" step="0.05" value="0.6" oninput="document.getElementById('denoisingValue').textContent = this.value">
+                </div>
+
+                <div class="row-2">
+                    <div class="config-section">
+                        <label data-i18n="label_aspect_ratio">比例</label>
+                        <select id="aspectRatio2">
+                            <option value="1:1">1:1 (方形)</option>
+                            <option value="16:9">16:9 (横屏)</option>
+                            <option value="9:16">9:16 (竖屏)</option>
+                            <option value="4:3">4:3 (横屏)</option>
+                            <option value="3:4">3:4 (竖屏)</option>
+                        </select>
+                    </div>
+                    <div class="config-section">
+                        <label data-i18n="label_resolution">分辨率</label>
+                        <select id="resolution2">
+                            <option value="512">512px (快速)</option>
+                            <option value="768">768px</option>
+                            <option value="1024" selected>1024px (高清)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <div class="label-row">
+                        <label data-i18n="label_steps">步数</label>
+                        <span id="stepsValue2">8</span>
+                    </div>
+                    <input type="range" id="steps2" min="1" max="50" value="8" oninput="document.getElementById('stepsValue2').textContent = this.value">
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_sampler">采样器</label>
+                    <select id="samplerSelect2">
+                        <option value="UniPC Trailing">UniPC Trailing</option>
+                        <option value="Euler">Euler</option>
+                        <option value="Euler a">Euler a</option>
+                        <option value="DPM++ 2M Karras">DPM++ 2M Karras</option>
+                        <option value="DPM++ SDE Karras">DPM++ SDE Karras</option>
+                        <option value="DDIM">DDIM</option>
+                        <option value="PLMS">PLMS</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" id="generateBtn2" onclick="generateImg2Img()">
+                    <span data-i18n="btn_generate">生成图片</span>
+                </button>
+
+                <div class="progress-container" id="progressContainer2">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill2"></div>
+                    </div>
+                    <div class="progress-text" id="progressText2" data-i18n="progress_generating">生成中...</div>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-gallery" class="tab-content">
             <div class="card">
                 <h3 style="margin-bottom: 15px;" data-i18n="gallery_title">最近图片</h3>
@@ -471,12 +578,19 @@
                 toast_settings_saved: '设置已保存',
                 toast_save_failed: '设置保存失败',
                 toast_gallery_failed: '画廊加载失败',
-                gallery_empty: '暂无图片'
+                gallery_empty: '暂无图片',
+                tab_img2img: '图生图',
+                label_upload_image: '上传图片',
+                placeholder_upload: '点击选择图片或拖拽到此处',
+                label_denoising: '变化强度',
+                toast_image_required: '请先上传图片',
+                toast_img2img_failed: '图生图生成失败'
             },
             en: {
                 tab_generate: 'Generate',
                 tab_gallery: 'Gallery',
                 tab_settings: 'Settings',
+                tab_img2img: 'Img2Img',
                 status_checking: 'Checking connection...',
                 status_connected: 'Draw Things connected',
                 status_disconnected: 'Draw Things disconnected',
@@ -513,7 +627,12 @@
                 toast_settings_saved: 'Settings saved',
                 toast_save_failed: 'Failed to save settings',
                 toast_gallery_failed: 'Failed to load gallery',
-                gallery_empty: 'No images yet'
+                gallery_empty: 'No images yet',
+                label_upload_image: 'Upload Image',
+                placeholder_upload: 'Click or drag image here',
+                label_denoising: 'Denoising Strength',
+                toast_image_required: 'Please upload an image first',
+                toast_img2img_failed: 'Img2Img generation failed'
             }
         };
 
@@ -742,6 +861,93 @@
 
         function downloadImage(filename) {
             window.open(`/api/image/${filename}`, '_blank');
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewImage').src = e.target.result;
+                document.getElementById('previewImage').style.display = 'block';
+                document.querySelector('.upload-placeholder').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function generateImg2Img() {
+            const imageData = document.getElementById('previewImage').src;
+            if (!imageData || imageData === 'data:') {
+                showToast(t('toast_image_required'), 'error');
+                return;
+            }
+
+            const prompt = document.getElementById('prompt2').value.trim();
+            if (!prompt) {
+                showToast(t('toast_prompt_required'), 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn2');
+            const progress = document.getElementById('progressContainer2');
+            const fill = document.getElementById('progressFill2');
+            const text = document.getElementById('progressText2');
+
+            btn.disabled = true;
+            progress.style.display = 'block';
+            fill.style.width = '0%';
+            text.textContent = t('progress_generating');
+
+            let progressValue = 0;
+            const interval = setInterval(() => {
+                progressValue = Math.min(progressValue + Math.random() * 10, 90);
+                fill.style.width = progressValue + '%';
+            }, 500);
+
+            const ratio = document.getElementById('aspectRatio2').value;
+            const resSize = parseInt(document.getElementById('resolution2').value);
+            const w = Math.round(resolutions[ratio].w * (resSize / 1024));
+            const h = Math.round(resolutions[ratio].h * (resSize / 1024));
+
+            const base64Image = imageData.split(',')[1];
+
+            const payload = {
+                prompt,
+                negative_prompt: document.getElementById('negativePrompt2').value,
+                image: base64Image,
+                denoising_strength: parseFloat(document.getElementById('denoisingStrength').value),
+                seed: -1,
+                width: w,
+                height: h,
+                steps: parseInt(document.getElementById('steps2').value),
+                guidance_scale: 1.0,
+                sampler: document.getElementById('samplerSelect2').value
+            };
+
+            try {
+                const res = await fetch('/api/img2img', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(r => r.json());
+
+                clearInterval(interval);
+                fill.style.width = '100%';
+
+                if (res.status === 'success') {
+                    showToast(`${t('toast_success')}: ${res.filename}`);
+                    document.getElementById('prompt2').value = '';
+                    loadGallery();
+                } else {
+                    showToast(res.detail || t('toast_img2img_failed'), 'error');
+                }
+            } catch (err) {
+                clearInterval(interval);
+                showToast(t('toast_server_error'), 'error');
+            }
+
+            btn.disabled = false;
+            setTimeout(() => progress.style.display = 'none', 1000);
         }
 
         loadConfig().then(() => { checkHealth(); loadModels(); applyI18n(); });
