@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Draw Things Web</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            color: #00d4ff;
+        }
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+        }
+        .status-dot.connected {
+            background: #00ff88;
+        }
+        .config-section {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .label-row span {
+            font-size: 0.85rem;
+            color: #00d4ff;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: #00d4ff;
+        }
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23fff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            padding-right: 40px;
+        }
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 8px;
+            padding: 0;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,212,255,0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .progress-container {
+            margin-top: 15px;
+            display: none;
+        }
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .image-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        .image-card:hover {
+            transform: scale(1.02);
+        }
+        .image-card img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+        }
+        .image-card .filename {
+            padding: 8px;
+            font-size: 0.75rem;
+            color: #aaa;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success {
+            border-left: 4px solid #00ff88;
+        }
+        .toast.error {
+            border-left: 4px solid #ff4444;
+        }
+        .tab-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .advanced-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 0;
+            cursor: pointer;
+            color: #00d4ff;
+            font-size: 0.9rem;
+        }
+        .advanced-toggle::before {
+            content: '▶';
+            font-size: 0.7rem;
+            transition: transform 0.3s;
+        }
+        .advanced-toggle.open::before {
+            transform: rotate(90deg);
+        }
+        .advanced-panel {
+            display: none;
+            padding-top: 10px;
+        }
+        .advanced-panel.show {
+            display: block;
+        }
+        .lang-toggle {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            padding: 6px 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            color: #fff;
+            font-size: 0.85rem;
+            cursor: pointer;
+            z-index: 100;
+        }
+        .lang-toggle:hover {
+            border-color: #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <button class="lang-toggle" id="langToggle" onclick="toggleLang()">EN</button>
+    <div class="container">
+        <h1>🎨 Draw Things</h1>
+
+        <div class="tab-bar">
+            <div class="tab active" data-tab="generate" data-i18n="tab_generate">生成</div>
+            <div class="tab" data-tab="gallery" data-i18n="tab_gallery">画廊</div>
+            <div class="tab" data-tab="settings" data-i18n="tab_settings">设置</div>
+        </div>
+
+        <div id="tab-generate" class="tab-content active">
+            <div class="card">
+                <div class="status-bar">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText" data-i18n="status_checking">检测连接中...</span>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_prompt">提示词</label>
+                    <textarea id="prompt" data-i18n-placeholder="placeholder_prompt" placeholder="A beautiful landscape with mountains..."></textarea>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_negative_prompt">反向提示词</label>
+                    <input type="text" id="negativePrompt" data-i18n-placeholder="placeholder_negative" placeholder="blurry, low quality...">
+                </div>
+
+                <div class="row-2">
+                    <div class="config-section">
+                        <label data-i18n="label_aspect_ratio">比例</label>
+                        <select id="aspectRatio">
+                            <option value="1:1" data-i18n="ratio_1_1">1:1 (方形)</option>
+                            <option value="16:9">16:9 (横屏)</option>
+                            <option value="9:16">9:16 (竖屏)</option>
+                            <option value="4:3">4:3 (横屏)</option>
+                            <option value="3:4">3:4 (竖屏)</option>
+                        </select>
+                    </div>
+                    <div class="config-section">
+                        <label data-i18n="label_resolution">分辨率</label>
+                        <select id="resolution">
+                            <option value="512" data-i18n="res_fast">512px (快速)</option>
+                            <option value="768">768px</option>
+                            <option value="1024" selected data-i18n="res_hq">1024px (高清)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <div class="label-row">
+                        <label data-i18n="label_steps">步数</label>
+                        <span id="stepsValue">8</span>
+                    </div>
+                    <input type="range" id="steps" min="1" max="50" value="8" oninput="document.getElementById('stepsValue').textContent = this.value">
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_model">模型</label>
+                    <select id="modelSelect">
+                        <option value="" data-i18n="opt_default">默认</option>
+                    </select>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_sampler">采样器</label>
+                    <select id="samplerSelect">
+                        <option value="UniPC Trailing">UniPC Trailing</option>
+                        <option value="Euler">Euler</option>
+                        <option value="Euler a">Euler a</option>
+                        <option value="DPM++ 2M Karras">DPM++ 2M Karras</option>
+                        <option value="DPM++ SDE Karras">DPM++ SDE Karras</option>
+                        <option value="DDIM">DDIM</option>
+                        <option value="PLMS">PLMS</option>
+                    </select>
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_subdir">子目录</label>
+                    <input type="text" id="subdir" placeholder="my_images">
+                </div>
+
+                <div class="advanced-toggle" onclick="toggleAdvanced()" data-i18n="advanced_options">高级选项</div>
+                <div class="advanced-panel" id="advancedPanel">
+                    <div class="config-section">
+                        <div class="label-row">
+                            <label data-i18n="label_guidance">引导强度</label>
+                            <span id="guidanceValue">1.0</span>
+                        </div>
+                        <input type="range" id="guidance" min="1" max="15" step="0.5" value="1" oninput="document.getElementById('guidanceValue').textContent = this.value">
+                    </div>
+                    <div class="config-section">
+                        <label data-i18n="label_seed">种子 (-1 随机)</label>
+                        <input type="number" id="seed" value="-1" placeholder="-1">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="generateBtn" onclick="generateImage()">
+                    <span data-i18n="btn_generate">生成图片</span>
+                </button>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText" data-i18n="progress_generating">生成中...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-gallery" class="tab-content">
+            <div class="card">
+                <h3 style="margin-bottom: 15px;" data-i18n="gallery_title">最近图片</h3>
+                <div class="image-grid" id="imageGrid"></div>
+                <button class="btn btn-secondary" onclick="loadGallery()" style="margin-top: 15px;" data-i18n="btn_refresh">
+                    刷新画廊
+                </button>
+            </div>
+        </div>
+
+        <div id="tab-settings" class="tab-content">
+            <div class="card">
+                <div class="config-section">
+                    <label data-i18n="label_output_path">输出路径</label>
+                    <input type="text" id="outputPath" placeholder="~/Downloads">
+                </div>
+
+                <div class="config-section">
+                    <label data-i18n="label_api_url">Draw Things API 地址</label>
+                    <input type="text" id="apiBase" placeholder="http://localhost:7860">
+                </div>
+
+                <button class="btn btn-primary" onclick="saveConfig()" data-i18n="btn_save">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let outputPath = '';
+        let currentLang = 'zh';
+
+        const i18n = {
+            zh: {
+                tab_generate: '生成',
+                tab_gallery: '画廊',
+                tab_settings: '设置',
+                status_checking: '检测连接中...',
+                status_connected: 'Draw Things 已连接',
+                status_disconnected: 'Draw Things 未连接',
+                status_offline: '服务离线',
+                label_prompt: '提示词',
+                placeholder_prompt: 'A beautiful landscape with mountains...',
+                label_negative_prompt: '反向提示词',
+                placeholder_negative: 'blurry, low quality...',
+                label_aspect_ratio: '比例',
+                ratio_1_1: '1:1 (方形)',
+                label_resolution: '分辨率',
+                res_fast: '512px (快速)',
+                res_hq: '1024px (高清)',
+                label_steps: '步数',
+                label_model: '模型',
+                opt_default: '默认',
+                label_sampler: '采样器',
+                label_guidance: '引导强度',
+                advanced_options: '高级选项',
+                label_subdir: '子目录',
+                label_seed: '种子 (-1 随机)',
+                btn_generate: '生成图片',
+                progress_generating: '生成中...',
+                gallery_title: '最近图片',
+                btn_refresh: '刷新画廊',
+                label_output_path: '输出路径',
+                label_api_url: 'Draw Things API 地址',
+                btn_save: '保存设置',
+                toast_prompt_required: '请输入提示词',
+                toast_success: '图片已保存',
+                toast_failed: '生成失败',
+                toast_server_error: '服务器连接失败',
+                toast_config_loaded: '配置加载失败',
+                toast_settings_saved: '设置已保存',
+                toast_save_failed: '设置保存失败',
+                toast_gallery_failed: '画廊加载失败',
+                gallery_empty: '暂无图片'
+            },
+            en: {
+                tab_generate: 'Generate',
+                tab_gallery: 'Gallery',
+                tab_settings: 'Settings',
+                status_checking: 'Checking connection...',
+                status_connected: 'Draw Things connected',
+                status_disconnected: 'Draw Things disconnected',
+                status_offline: 'Server offline',
+                label_prompt: 'Prompt',
+                placeholder_prompt: 'A beautiful landscape with mountains...',
+                label_negative_prompt: 'Negative Prompt',
+                placeholder_negative: 'blurry, low quality...',
+                label_aspect_ratio: 'Aspect Ratio',
+                ratio_1_1: '1:1 (Square)',
+                label_resolution: 'Resolution',
+                res_fast: '512px (Fast)',
+                res_hq: '1024px (HQ)',
+                label_steps: 'Steps',
+                label_model: 'Model',
+                opt_default: 'Default',
+                label_sampler: 'Sampler',
+                label_guidance: 'Guidance Scale',
+                advanced_options: 'Advanced Options',
+                label_subdir: 'Subdirectory',
+                label_seed: 'Seed (-1 for random)',
+                btn_generate: 'Generate Image',
+                progress_generating: 'Generating...',
+                gallery_title: 'Recent Images',
+                btn_refresh: 'Refresh Gallery',
+                label_output_path: 'Output Path',
+                label_api_url: 'Draw Things API URL',
+                btn_save: 'Save Settings',
+                toast_prompt_required: 'Please enter a prompt',
+                toast_success: 'Image saved',
+                toast_failed: 'Generation failed',
+                toast_server_error: 'Failed to connect to server',
+                toast_config_loaded: 'Failed to load config',
+                toast_settings_saved: 'Settings saved',
+                toast_save_failed: 'Failed to save settings',
+                toast_gallery_failed: 'Failed to load gallery',
+                gallery_empty: 'No images yet'
+            }
+        };
+
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('langToggle').textContent = currentLang === 'zh' ? 'EN' : '中';
+            applyI18n();
+        }
+
+        function applyI18n() {
+            const t = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (t[key]) el.placeholder = t[key];
+            });
+            if (currentLang === 'en') {
+                document.getElementById('aspectRatio').options[0].text = '1:1 (Square)';
+                document.getElementById('resolution').options[0].text = '512px (Fast)';
+                document.getElementById('resolution').options[2].text = '1024px (HQ)';
+                document.getElementById('modelSelect').options[0].text = 'Default';
+            } else {
+                document.getElementById('aspectRatio').options[0].text = '1:1 (方形)';
+                document.getElementById('resolution').options[0].text = '512px (快速)';
+                document.getElementById('resolution').options[2].text = '1024px (高清)';
+                document.getElementById('modelSelect').options[0].text = '默认';
+            }
+        }
+
+        const resolutions = {
+            '1:1': { w: 1024, h: 1024 },
+            '16:9': { w: 1280, h: 720 },
+            '9:16': { w: 720, h: 1280 },
+            '4:3': { w: 1024, h: 768 },
+            '3:4': { w: 768, h: 1024 }
+        };
+
+        async function api(endpoint, options = {}) {
+            return fetch(endpoint, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options
+            }).then(r => r.json());
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        function t(key) {
+            return i18n[currentLang][key] || key;
+        }
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        });
+
+        function toggleAdvanced() {
+            const panel = document.getElementById('advancedPanel');
+            const toggle = document.querySelector('.advanced-toggle');
+            panel.classList.toggle('show');
+            toggle.classList.toggle('open');
+        }
+
+        async function checkHealth() {
+            try {
+                const status = await api('/api/health');
+                const dot = document.getElementById('statusDot');
+                const text = document.getElementById('statusText');
+                if (status.drawthings === 'connected') {
+                    dot.classList.add('connected');
+                    text.textContent = t('status_connected');
+                } else {
+                    text.textContent = t('status_disconnected');
+                }
+            } catch {
+                document.getElementById('statusText').textContent = t('status_offline');
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const config = await api('/api/config');
+                outputPath = config.output_path || '';
+                document.getElementById('outputPath').value = outputPath;
+                document.getElementById('apiBase').value = config.api_base || '';
+            } catch {
+                showToast(t('toast_config_loaded'), 'error');
+            }
+        }
+
+        async function loadModels() {
+            try {
+                const data = await api('/api/models');
+                const select = document.getElementById('modelSelect');
+                select.innerHTML = '<option value="">Default</option>';
+                if (data.models && data.models.length > 0) {
+                    data.models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m;
+                        opt.textContent = m;
+                        if (m === data.current) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch {}
+        }
+
+        async function saveConfig() {
+            const output = document.getElementById('outputPath').value;
+            const apiBaseVal = document.getElementById('apiBase').value;
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ output_path: output, api_base: apiBaseVal })
+                }).then(r => r.json());
+                outputPath = output;
+                showToast(t('toast_settings_saved'));
+                checkHealth();
+            } catch {
+                showToast(t('toast_save_failed'), 'error');
+            }
+        }
+
+        async function generateImage() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                showToast(t('toast_prompt_required'), 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const progress = document.getElementById('progressContainer');
+            const fill = document.getElementById('progressFill');
+            const text = document.getElementById('progressText');
+
+            btn.disabled = true;
+            progress.style.display = 'block';
+            fill.style.width = '0%';
+            text.textContent = t('progress_generating');
+
+            let progressValue = 0;
+            const interval = setInterval(() => {
+                progressValue = Math.min(progressValue + Math.random() * 10, 90);
+                fill.style.width = progressValue + '%';
+            }, 500);
+
+            const ratio = document.getElementById('aspectRatio').value;
+            const resSize = parseInt(document.getElementById('resolution').value);
+            const w = Math.round(resolutions[ratio].w * (resSize / 1024));
+            const h = Math.round(resolutions[ratio].h * (resSize / 1024));
+
+            const payload = {
+                prompt,
+                negative_prompt: document.getElementById('negativePrompt').value,
+                seed: parseInt(document.getElementById('seed').value) || -1,
+                width: w,
+                height: h,
+                steps: parseInt(document.getElementById('steps').value),
+                guidance_scale: parseFloat(document.getElementById('guidance').value),
+                sampler: document.getElementById('samplerSelect').value
+            };
+
+            const subdir = document.getElementById('subdir').value.trim();
+            payload.output_path = subdir ? `${outputPath}/${subdir}` : outputPath;
+
+            const model = document.getElementById('modelSelect').value;
+            if (model) payload.model = model;
+
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(r => r.json());
+
+                clearInterval(interval);
+                fill.style.width = '100%';
+
+                if (res.status === 'success') {
+                    showToast(`${t('toast_success')}: ${res.filename}`);
+                    document.getElementById('prompt').value = '';
+                    loadGallery();
+                } else {
+                    showToast(res.detail || t('toast_failed'), 'error');
+                }
+            } catch (err) {
+                clearInterval(interval);
+                showToast(t('toast_server_error'), 'error');
+            }
+
+            btn.disabled = false;
+            setTimeout(() => progress.style.display = 'none', 1000);
+        }
+
+        async function loadGallery() {
+            try {
+                const images = await api('/api/images');
+                const grid = document.getElementById('imageGrid');
+                grid.innerHTML = images.map(img => `
+                    <div class="image-card" onclick="downloadImage('${img.filename}')">
+                        <img src="${img.url}" alt="${img.filename}">
+                        <div class="filename">${img.filename}</div>
+                    </div>
+                `).join('');
+                if (images.length === 0) {
+                    grid.innerHTML = `<p style="color:#666;grid-column:1/-1;text-align:center;">${t('gallery_empty')}</p>`;
+                }
+            } catch {
+                showToast(t('toast_gallery_failed'), 'error');
+            }
+        }
+
+        function downloadImage(filename) {
+            window.open(`/api/image/${filename}`, '_blank');
+        }
+
+        loadConfig().then(() => { checkHealth(); loadModels(); applyI18n(); });
+        loadGallery();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>
