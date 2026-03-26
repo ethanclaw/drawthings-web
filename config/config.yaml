@@ -1,0 +1,10 @@
+app:
+  port: 3002
+
+backend:
+  port: 8002
+  api_base: "http://host.docker.internal:7860"
+
+storage:
+  output_path: "~/Workspace/drawthings-ui/images"
+  read_path: "/app/images"

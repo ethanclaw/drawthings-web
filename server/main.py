@@ -7,12 +7,13 @@ import httpx
 import asyncio
 import os
 import json
+import yaml
 import uuid
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 app = FastAPI()
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.environ.get("CONFIG_PATH", "/app/config/config.yaml")
 executor = ThreadPoolExecutor(max_workers=3)
 
 jobs = {}
@@ -61,18 +62,23 @@ def load_config():
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
-                loaded = json.load(f)
-                config["output_path"] = loaded.get("output_path", os.path.expanduser("~/Downloads"))
-                config["api_base"] = loaded.get("api_base", "http://localhost:7860")
-        except:
-            pass
+                loaded = yaml.safe_load(f)
+                config["output_path"] = os.path.expanduser(loaded.get("storage", {}).get("output_path", "~/Workspace/drawthings-ui/images"))
+                config["read_path"] = loaded.get("storage", {}).get("read_path", "/app/images")
+                config["api_base"] = loaded.get("backend", {}).get("api_base", "http://localhost:7860")
+        except Exception as e:
+            print(f"Error loading config: {e}")
 
 def save_config():
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=2)
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            yaml.safe_dump(config, f, default_flow_style=False)
+    except Exception as e:
+        print(f"Error saving config: {e}")
 
 config = {
-    "output_path": os.path.expanduser("~/Downloads/Dthings"),
+    "output_path": os.path.expanduser("~/Workspace/drawthings-ui/images"),
+    "read_path": "/app/images",
     "api_base": "http://localhost:7860"
 }
 
@@ -80,11 +86,15 @@ load_config()
 
 @app.get("/api/config")
 async def get_config():
-    return config
+    return {
+        "output_path": config["output_path"],
+        "read_path": config["read_path"],
+        "api_base": config["api_base"]
+    }
 
 @app.post("/api/config")
 async def update_config(req: ConfigRequest):
-    config["output_path"] = req.output_path
+    config["output_path"] = os.path.expanduser(req.output_path)
     config["api_base"] = req.api_base
     save_config()
     return {"status": "ok", "config": config}
@@ -133,7 +143,7 @@ def run_generate_sync(job_id: str, req_data: dict):
             payload["model"] = req_data["model"]
 
         jobs[job_id]["status"] = "processing"
-        
+
         with httpx.Client(timeout=300.0) as client:
             response = client.post(
                 f"{config['api_base']}/sdapi/v1/txt2img",
@@ -153,6 +163,7 @@ def run_generate_sync(job_id: str, req_data: dict):
                 filepath = os.path.join(req_data["output_path"], filename)
 
                 img_bytes = base64.b64decode(image_data)
+                Path(filepath).parent.mkdir(parents=True, exist_ok=True)
                 with open(filepath, "wb") as f:
                     f.write(img_bytes)
 
@@ -185,7 +196,7 @@ async def generate_image(req: GenerateRequest):
     job_id = str(uuid.uuid4())[:8]
     req_data = req.model_dump()
     req_data["output_path"] = output_path
-    
+
     jobs[job_id] = {
         "status": "pending",
         "type": "txt2img",
@@ -232,7 +243,7 @@ def run_img2img_sync(job_id: str, req_data: dict):
             payload["model"] = req_data["model"]
 
         jobs[job_id]["status"] = "processing"
-        
+
         with httpx.Client(timeout=300.0) as client:
             response = client.post(
                 f"{config['api_base']}/sdapi/v1/img2img",
@@ -252,6 +263,7 @@ def run_img2img_sync(job_id: str, req_data: dict):
                 filepath = os.path.join(req_data["output_path"], filename)
 
                 img_bytes = base64.b64decode(image_data)
+                Path(filepath).parent.mkdir(parents=True, exist_ok=True)
                 with open(filepath, "wb") as f:
                     f.write(img_bytes)
 
@@ -308,7 +320,7 @@ async def img2img(req: Img2ImgRequest):
 async def get_image(filepath: str):
     from fastapi.responses import FileResponse
     safe_path = os.path.normpath(filepath)
-    full_path = os.path.join(config["output_path"], safe_path)
+    full_path = os.path.join(config["read_path"], safe_path)
 
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail=f"Image not found: {full_path}")
@@ -318,7 +330,7 @@ async def get_image(filepath: str):
 @app.delete("/api/image/{filepath:path}")
 async def delete_image(filepath: str):
     safe_path = os.path.normpath(filepath)
-    full_path = os.path.join(config["output_path"], safe_path)
+    full_path = os.path.join(config["read_path"], safe_path)
 
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Image not found")
@@ -331,21 +343,21 @@ async def delete_image(filepath: str):
 
 @app.get("/api/images")
 async def list_images(type: str = "all"):
-    output_path = config["output_path"]
-    if not os.path.exists(output_path):
+    read_path = config["read_path"]
+    if not os.path.exists(read_path):
         return []
 
     images = []
     image_exts = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
-    
-    for f in Path(output_path).rglob('*'):
+
+    for f in Path(read_path).rglob('*'):
         if f.is_file() and f.suffix.lower() in image_exts:
-            rel_path = f.relative_to(output_path)
+            rel_path = f.relative_to(read_path)
             rel_path_str = str(rel_path).replace('\\', '/')
-            
+
             if type != "all" and not rel_path_str.startswith(type):
                 continue
-                
+
             images.append({
                 "filename": rel_path_str,
                 "url": f"/api/image/{rel_path_str}",

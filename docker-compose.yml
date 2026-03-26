@@ -1,0 +1,34 @@
+services:
+  express:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: drawthings-express
+    ports:
+      - "3002:3002"
+    volumes:
+      - ~/Workspace/drawthings-ui:/app
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    restart: unless-stopped
+    networks:
+      - drawthings-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: drawthings-backend
+    ports:
+      - "8002:8002"
+    volumes:
+      - ~/Workspace/drawthings-ui:/app
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    restart: unless-stopped
+    networks:
+      - drawthings-network
+
+networks:
+  drawthings-network:
+    driver: bridge

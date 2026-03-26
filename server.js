@@ -1,15 +1,25 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const yaml = require('js-yaml');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+
+const CONFIG_PATH = process.env.CONFIG_PATH || path.join(__dirname, 'config', 'config.yaml');
+const config = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8'));
+
+const PORT = config.app.port;
+const BACKEND_PORT = config.backend.port;
+const API_BASE = config.backend.api_base;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const backendUrl = `http://localhost:${BACKEND_PORT}`;
+
 app.get('/api/health', (req, res) => {
-    http.get('http://localhost:8000/api/health', (apiRes) => {
+    http.get(`${backendUrl}/api/health`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
@@ -17,7 +27,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/config', (req, res) => {
-    http.get('http://localhost:8000/api/config', (apiRes) => {
+    http.get(`${backendUrl}/api/config`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
@@ -31,7 +41,7 @@ app.post('/api/config', (req, res) => {
         const postData = Buffer.concat(body).toString();
         const options = {
             hostname: 'localhost',
-            port: 8000,
+            port: BACKEND_PORT,
             path: '/api/config',
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Content-Length': postData.length }
@@ -49,7 +59,7 @@ app.post('/api/config', (req, res) => {
 app.get('/api/images', (req, res) => {
     const queryParams = new URLSearchParams(req.query).toString();
     const path = queryParams ? `/api/images?${queryParams}` : '/api/images';
-    http.get(`http://localhost:8000${path}`, (apiRes) => {
+    http.get(`${backendUrl}${path}`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
@@ -57,7 +67,7 @@ app.get('/api/images', (req, res) => {
 });
 
 app.get('/api/models', (req, res) => {
-    http.get('http://localhost:8000/api/models', (apiRes) => {
+    http.get(`${backendUrl}/api/models`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
@@ -65,7 +75,7 @@ app.get('/api/models', (req, res) => {
 });
 
 app.get('/api/samplers', (req, res) => {
-    http.get('http://localhost:8000/api/samplers', (apiRes) => {
+    http.get(`${backendUrl}/api/samplers`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
@@ -76,7 +86,7 @@ app.post('/api/generate', (req, res) => {
     const body = JSON.stringify(req.body);
     const options = {
         hostname: 'localhost',
-        port: 8000,
+        port: BACKEND_PORT,
         path: '/api/generate',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
@@ -97,7 +107,7 @@ app.post('/api/img2img', (req, res) => {
     const body = JSON.stringify(req.body);
     const options = {
         hostname: 'localhost',
-        port: 8000,
+        port: BACKEND_PORT,
         path: '/api/img2img',
         method: 'POST',
         headers: {
@@ -126,7 +136,7 @@ app.post('/api/img2img', (req, res) => {
 
 app.get('/api/image/*', (req, res) => {
     const filepath = req.params[0];
-    http.get(`http://localhost:8000/api/image/${filepath}`, (apiRes) => {
+    http.get(`${backendUrl}/api/image/${filepath}`, (apiRes) => {
         res.setHeader('Content-Type', apiRes.headers['content-type'] || 'image/png');
         apiRes.pipe(res);
     }).on('error', () => res.status(404).json({ error: 'Not found' }));
@@ -136,7 +146,7 @@ app.delete('/api/image/*', (req, res) => {
     const filepath = req.params[0];
     const options = {
         hostname: 'localhost',
-        port: 8000,
+        port: BACKEND_PORT,
         path: `/api/image/${filepath}`,
         method: 'DELETE'
     };
@@ -156,7 +166,7 @@ app.delete('/api/image/*', (req, res) => {
 });
 
 app.get('/api/job/:job_id', (req, res) => {
-    http.get(`http://localhost:8000/api/job/${req.params.job_id}`, (apiRes) => {
+    http.get(`${backendUrl}/api/job/${req.params.job_id}`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => {
@@ -170,7 +180,7 @@ app.get('/api/job/:job_id', (req, res) => {
 });
 
 app.get('/api/jobs', (req, res) => {
-    http.get('http://localhost:8000/api/jobs', (apiRes) => {
+    http.get(`${backendUrl}/api/jobs`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => {
@@ -185,5 +195,5 @@ app.get('/api/jobs', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Draw Things Web running at http://localhost:${PORT}`);
-    console.log(`FastAPI backend should be running on port 8000`);
+    console.log(`FastAPI backend running at http://localhost:${BACKEND_PORT}`);
 });

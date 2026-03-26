@@ -2,3 +2,9 @@ node_modules/
 .env
 *.log
 .DS_Store
+
+# Images (bind mount from host)
+images/
+
+# Local config (bind mount from host)
+# config/config.yaml
