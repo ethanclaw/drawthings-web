@@ -47,7 +47,9 @@ app.post('/api/config', (req, res) => {
 });
 
 app.get('/api/images', (req, res) => {
-    http.get('http://localhost:8000/api/images', (apiRes) => {
+    const queryParams = new URLSearchParams(req.query).toString();
+    const path = queryParams ? `/api/images?${queryParams}` : '/api/images';
+    http.get(`http://localhost:8000${path}`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => res.json(JSON.parse(data)));
