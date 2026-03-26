@@ -66,7 +66,7 @@ def save_config():
         json.dump(config, f, indent=2)
 
 config = {
-    "output_path": os.path.expanduser("~/Downloads"),
+    "output_path": os.path.expanduser("~/Downloads/Dthings"),
     "api_base": "http://localhost:7860"
 }
 
@@ -115,6 +115,7 @@ async def generate_image(req: GenerateRequest):
         raise HTTPException(status_code=400, detail="Prompt is required")
 
     output_path = req.output_path or config["output_path"]
+    output_path = os.path.join(output_path, "txt2img")
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -176,6 +177,7 @@ async def img2img(req: Img2ImgRequest):
         raise HTTPException(status_code=400, detail="Image is required")
 
     output_path = req.output_path or config["output_path"]
+    output_path = os.path.join(output_path, "img2img")
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -242,21 +244,27 @@ async def get_image(filepath: str):
     return FileResponse(full_path, media_type="image/png")
 
 @app.get("/api/images")
-async def list_images():
+async def list_images(type: str = "all"):
     output_path = config["output_path"]
     if not os.path.exists(output_path):
         return []
 
     images = []
     image_exts = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+    
     for f in Path(output_path).rglob('*'):
         if f.is_file() and f.suffix.lower() in image_exts:
             rel_path = f.relative_to(output_path)
             rel_path_str = str(rel_path).replace('\\', '/')
+            
+            if type != "all" and not rel_path_str.startswith(type):
+                continue
+                
             images.append({
                 "filename": rel_path_str,
                 "url": f"/api/image/{rel_path_str}",
                 "name": f.name,
+                "type": rel_path_str.split('/')[0] if '/' in rel_path_str else "root",
                 "created": f.stat().st_ctime,
                 "size": f.stat().st_size
             })

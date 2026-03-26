@@ -523,7 +523,14 @@
 
         <div id="tab-gallery" class="tab-content">
             <div class="card">
-                <h3 style="margin-bottom: 15px;" data-i18n="gallery_title">最近图片</h3>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 data-i18n="gallery_title">最近图片</h3>
+                    <select id="galleryFilter" onchange="loadGallery()" style="width:auto; padding:8px 12px;">
+                        <option value="all" data-i18n="filter_all">全部</option>
+                        <option value="txt2img">Txt2Img</option>
+                        <option value="img2img">Img2Img</option>
+                    </select>
+                </div>
                 <div class="image-grid" id="imageGrid"></div>
                 <button class="btn btn-secondary" onclick="loadGallery()" style="margin-top: 15px;" data-i18n="btn_refresh">
                     刷新画廊
@@ -583,6 +590,7 @@
                 btn_generate: '生成图片',
                 progress_generating: '生成中...',
                 gallery_title: '最近图片',
+                filter_all: '全部',
                 btn_refresh: '刷新画廊',
                 label_output_path: '输出路径',
                 label_api_url: 'Draw Things API 地址',
@@ -634,6 +642,7 @@
                 btn_generate: 'Generate Image',
                 progress_generating: 'Generating...',
                 gallery_title: 'Recent Images',
+                filter_all: 'All',
                 btn_refresh: 'Refresh Gallery',
                 label_output_path: 'Output Path',
                 label_api_url: 'Draw Things API URL',
@@ -864,14 +873,15 @@
 
         async function loadGallery() {
             try {
-                const images = await api('/api/images');
+                const filter = document.getElementById('galleryFilter').value;
+                const images = await api(`/api/images?type=${filter}`);
                 const grid = document.getElementById('imageGrid');
                 grid.innerHTML = images.map(img => `
                     <div class="image-card">
                         <img src="${img.url}" alt="${img.filename}" onclick="downloadImage('${img.filename}')">
                         <div class="filename">
                             <button class="delete-btn" onclick="event.stopPropagation(); deleteImage('${img.filename}')">×</button>
-                            ${img.filename}
+                            ${img.name}
                         </div>
                     </div>
                 `).join('');
