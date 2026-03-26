@@ -199,6 +199,28 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            position: relative;
+        }
+        .image-card .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255,68,68,0.8);
+            border: none;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .image-card:hover .delete-btn {
+            opacity: 1;
+        }
+        .image-card .delete-btn:hover {
+            background: rgba(255,68,68,1);
         }
         .toast {
             position: fixed;
@@ -415,11 +437,6 @@
 
         <div id="tab-img2img" class="tab-content">
             <div class="card">
-                <div class="status-bar">
-                    <div class="status-dot" id="statusDot2"></div>
-                    <span id="statusText2" data-i18n="status_checking">检测连接中...</span>
-                </div>
-
                 <div class="config-section">
                     <label data-i18n="label_upload_image">上传图片</label>
                     <div class="upload-area" id="uploadArea">
@@ -584,7 +601,9 @@
                 placeholder_upload: '点击选择图片或拖拽到此处',
                 label_denoising: '变化强度',
                 toast_image_required: '请先上传图片',
-                toast_img2img_failed: '图生图生成失败'
+                toast_img2img_failed: '图生图生成失败',
+                toast_delete_success: '图片已删除',
+                toast_delete_failed: '删除失败'
             },
             en: {
                 tab_generate: 'Generate',
@@ -632,7 +651,9 @@
                 placeholder_upload: 'Click or drag image here',
                 label_denoising: 'Denoising Strength',
                 toast_image_required: 'Please upload an image first',
-                toast_img2img_failed: 'Img2Img generation failed'
+                toast_img2img_failed: 'Img2Img generation failed',
+                toast_delete_success: 'Image deleted',
+                toast_delete_failed: 'Delete failed'
             }
         };
 
@@ -846,9 +867,12 @@
                 const images = await api('/api/images');
                 const grid = document.getElementById('imageGrid');
                 grid.innerHTML = images.map(img => `
-                    <div class="image-card" onclick="downloadImage('${img.filename}')">
-                        <img src="${img.url}" alt="${img.filename}">
-                        <div class="filename">${img.filename}</div>
+                    <div class="image-card">
+                        <img src="${img.url}" alt="${img.filename}" onclick="downloadImage('${img.filename}')">
+                        <div class="filename">
+                            <button class="delete-btn" onclick="event.stopPropagation(); deleteImage('${img.filename}')">×</button>
+                            ${img.filename}
+                        </div>
                     </div>
                 `).join('');
                 if (images.length === 0) {
@@ -861,6 +885,21 @@
 
         function downloadImage(filename) {
             window.open(`/api/image/${filename}`, '_blank');
+        }
+
+        async function deleteImage(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+            try {
+                const res = await fetch(`/api/image/${filename}`, { method: 'DELETE' }).then(r => r.json());
+                if (res.status === 'success') {
+                    showToast('Image deleted');
+                    loadGallery();
+                } else {
+                    showToast(res.detail || 'Delete failed', 'error');
+                }
+            } catch {
+                showToast('Delete failed', 'error');
+            }
         }
 
         function handleImageSelect(event) {
@@ -877,7 +916,7 @@
 
         async function generateImg2Img() {
             const imageData = document.getElementById('previewImage').src;
-            if (!imageData || imageData === 'data:') {
+            if (!imageData || !imageData.includes(',') || imageData === 'data:,') {
                 showToast(t('toast_image_required'), 'error');
                 return;
             }

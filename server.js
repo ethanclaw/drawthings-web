@@ -5,6 +5,7 @@ const http = require('http');
 const app = express();
 const PORT = 3000;
 
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/health', (req, res) => {
@@ -93,22 +94,34 @@ app.post('/api/generate', (req, res) => {
 });
 
 app.post('/api/img2img', (req, res) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
     req.on('end', () => {
+        const body = Buffer.concat(chunks);
         const options = {
             hostname: 'localhost',
             port: 8000,
             path: '/api/img2img',
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': body.length
+            }
         };
         const proxyReq = http.request(options, (proxyRes) => {
-            let data = '';
-            proxyRes.on('data', chunk => data += chunk);
+            const dataChunks = [];
+            proxyRes.on('data', chunk => dataChunks.push(chunk));
             proxyRes.on('end', () => {
-                res.status(proxyRes.statusCode).json(JSON.parse(data));
+                const data = Buffer.concat(dataChunks);
+                try {
+                    res.status(proxyRes.statusCode).json(JSON.parse(data));
+                } catch (e) {
+                    res.status(500).json({ error: 'Parse error', detail: e.message });
+                }
             });
+        });
+        proxyReq.on('error', (e) => {
+            res.status(500).json({ error: 'Proxy error', detail: e.message });
         });
         proxyReq.write(body);
         proxyReq.end();
@@ -120,6 +133,28 @@ app.get('/api/image/:filename', (req, res) => {
         res.setHeader('Content-Type', apiRes.headers['content-type'] || 'image/png');
         apiRes.pipe(res);
     }).on('error', () => res.status(404).json({ error: 'Not found' }));
+});
+
+app.delete('/api/image/:filename', (req, res) => {
+    const options = {
+        hostname: 'localhost',
+        port: 8000,
+        path: `/api/image/${req.params.filename}`,
+        method: 'DELETE'
+    };
+    const proxyReq = http.request(options, (proxyRes) => {
+        let data = '';
+        proxyRes.on('data', chunk => data += chunk);
+        proxyRes.on('end', () => {
+            try {
+                res.status(proxyRes.statusCode).json(JSON.parse(data));
+            } catch {
+                res.status(proxyRes.statusCode).send(data);
+            }
+        });
+    });
+    proxyReq.on('error', () => res.status(500).json({ error: 'Proxy error' }));
+    proxyReq.end();
 });
 
 app.listen(PORT, () => {

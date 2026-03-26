@@ -237,6 +237,20 @@ async def list_images():
         })
     return images
 
+@app.delete("/api/image/{filename}")
+async def delete_image(filename: str):
+    safe_filename = os.path.basename(filename)
+    filepath = os.path.join(config["output_path"], safe_filename)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    try:
+        os.remove(filepath)
+        return {"status": "success", "deleted": safe_filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/health")
 async def health_check():
     try:
