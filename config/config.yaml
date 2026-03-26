@@ -7,5 +7,5 @@ backend:
   api_base: "http://host.docker.internal:7860"
 
 storage:
-  output_path: "/Users/ethan/Workspace/drawthings-ui/images"
+  output_path: "/app/images"
   read_path: "/app/images"
