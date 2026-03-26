@@ -7,4 +7,5 @@ node_modules/
 images/
 
 # Local config (bind mount from host)
-# config/config.yaml
+config/config.yaml
+config/config.yaml.local

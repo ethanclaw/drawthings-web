@@ -1,0 +1,15 @@
+app:
+  port: 3002
+  auth:
+    enabled: true
+    username: "qz757"
+    password: "qq666888"
+
+backend:
+  host: "host.docker.internal"
+  port: 8002
+  api_base: "http://host.docker.internal:7860"
+
+storage:
+  output_path: "/app/images"
+  read_path: "/app/images"
