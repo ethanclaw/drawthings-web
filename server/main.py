@@ -304,16 +304,30 @@ async def img2img(req: Img2ImgRequest):
         "message": "Task submitted, use /api/job/{job_id} to check status"
     }
 
-@app.get("/api/image/{filepath}")
+@app.get("/api/image/{filepath:path}")
 async def get_image(filepath: str):
     from fastapi.responses import FileResponse
     safe_path = os.path.normpath(filepath)
     full_path = os.path.join(config["output_path"], safe_path)
 
     if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=404, detail=f"Image not found: {full_path}")
 
     return FileResponse(full_path, media_type="image/png")
+
+@app.delete("/api/image/{filepath:path}")
+async def delete_image(filepath: str):
+    safe_path = os.path.normpath(filepath)
+    full_path = os.path.join(config["output_path"], safe_path)
+
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    try:
+        os.remove(full_path)
+        return {"status": "success", "deleted": safe_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/images")
 async def list_images(type: str = "all"):
@@ -342,20 +356,6 @@ async def list_images(type: str = "all"):
             })
     images.sort(key=lambda x: x["created"], reverse=True)
     return images[:50]
-
-@app.delete("/api/image/{filepath}")
-async def delete_image(filepath: str):
-    safe_path = os.path.normpath(filepath)
-    full_path = os.path.join(config["output_path"], safe_path)
-
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    try:
-        os.remove(full_path)
-        return {"status": "success", "deleted": safe_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")
 async def health_check():

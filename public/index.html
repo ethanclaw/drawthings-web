@@ -1072,12 +1072,24 @@
         async function checkActiveJob() {
             if (!activeJobId) return;
             
-            const jobRes = await fetch(`/api/job/${activeJobId}`).then(r => r.json()).catch(() => null);
+            let jobRes;
+            try {
+                const response = await fetch(`/api/job/${activeJobId}`);
+                if (response.status === 404) {
+                    jobRes = { status: 'not_found' };
+                } else {
+                    jobRes = await response.json();
+                }
+            } catch {
+                jobRes = { status: 'error' };
+            }
             
-            if (!jobRes || jobRes.status === 'not_found') {
+            if (!jobRes || jobRes.status === 'not_found' || jobRes.status === 'error') {
                 localStorage.removeItem('activeJobId');
                 activeJobId = null;
                 enableGenerateButtons();
+                showToast('Previous job status unknown. Please check gallery.', 'error');
+                loadGallery();
                 return;
             }
 
@@ -1116,15 +1128,27 @@
             if (btn2) btn2.disabled = true;
 
             const pollInterval = setInterval(async () => {
-                const jobRes = await fetch(`/api/job/${jobId}`).then(r => r.json()).catch(() => null);
+                let jobRes;
+                try {
+                    const response = await fetch(`/api/job/${jobId}`);
+                    if (response.status === 404) {
+                        jobRes = { status: 'not_found' };
+                    } else {
+                        jobRes = await response.json();
+                    }
+                } catch {
+                    jobRes = { status: 'error' };
+                }
                 
-                if (!jobRes || jobRes.status === 'not_found') {
+                if (!jobRes || jobRes.status === 'not_found' || jobRes.status === 'error') {
                     clearInterval(pollInterval);
                     localStorage.removeItem('activeJobId');
                     activeJobId = null;
                     enableGenerateButtons();
                     if (progress) progress.style.display = 'none';
                     if (progress2) progress2.style.display = 'none';
+                    showToast('Job status unknown. Please check gallery.', 'error');
+                    loadGallery();
                     return;
                 }
 
