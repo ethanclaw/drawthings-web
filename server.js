@@ -73,61 +73,55 @@ app.get('/api/samplers', (req, res) => {
 });
 
 app.post('/api/generate', (req, res) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-        const options = {
-            hostname: 'localhost',
-            port: 8000,
-            path: '/api/generate',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }
-        };
-        const proxyReq = http.request(options, (proxyRes) => {
-            let data = '';
-            proxyRes.on('data', chunk => data += chunk);
-            proxyRes.on('end', () => {
-                res.status(proxyRes.statusCode).json(JSON.parse(data));
-            });
+    const body = JSON.stringify(req.body);
+    const options = {
+        hostname: 'localhost',
+        port: 8000,
+        path: '/api/generate',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    };
+    const proxyReq = http.request(options, (proxyRes) => {
+        let data = '';
+        proxyRes.on('data', chunk => data += chunk);
+        proxyRes.on('end', () => {
+            res.status(proxyRes.statusCode).json(JSON.parse(data));
         });
-        proxyReq.write(body);
-        proxyReq.end();
     });
+    proxyReq.on('error', (e) => res.status(500).json({ error: e.message }));
+    proxyReq.write(body);
+    proxyReq.end();
 });
 
 app.post('/api/img2img', (req, res) => {
-    const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
-    req.on('end', () => {
-        const body = Buffer.concat(chunks);
-        const options = {
-            hostname: 'localhost',
-            port: 8000,
-            path: '/api/img2img',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': body.length
+    const body = JSON.stringify(req.body);
+    const options = {
+        hostname: 'localhost',
+        port: 8000,
+        path: '/api/img2img',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body)
+        }
+    };
+    const proxyReq = http.request(options, (proxyRes) => {
+        const dataChunks = [];
+        proxyRes.on('data', chunk => dataChunks.push(chunk));
+        proxyRes.on('end', () => {
+            const data = Buffer.concat(dataChunks);
+            try {
+                res.status(proxyRes.statusCode).json(JSON.parse(data));
+            } catch (e) {
+                res.status(500).json({ error: 'Parse error', detail: e.message });
             }
-        };
-        const proxyReq = http.request(options, (proxyRes) => {
-            const dataChunks = [];
-            proxyRes.on('data', chunk => dataChunks.push(chunk));
-            proxyRes.on('end', () => {
-                const data = Buffer.concat(dataChunks);
-                try {
-                    res.status(proxyRes.statusCode).json(JSON.parse(data));
-                } catch (e) {
-                    res.status(500).json({ error: 'Parse error', detail: e.message });
-                }
-            });
         });
-        proxyReq.on('error', (e) => {
-            res.status(500).json({ error: 'Proxy error', detail: e.message });
-        });
-        proxyReq.write(body);
-        proxyReq.end();
     });
+    proxyReq.on('error', (e) => {
+        res.status(500).json({ error: 'Proxy error', detail: e.message });
+    });
+    proxyReq.write(body);
+    proxyReq.end();
 });
 
 app.get('/api/image/*', (req, res) => {
