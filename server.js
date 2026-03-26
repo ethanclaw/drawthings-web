@@ -128,18 +128,20 @@ app.post('/api/img2img', (req, res) => {
     });
 });
 
-app.get('/api/image/:filename', (req, res) => {
-    http.get(`http://localhost:8000/api/image/${req.params.filename}`, (apiRes) => {
+app.get('/api/image/*', (req, res) => {
+    const filepath = req.params[0];
+    http.get(`http://localhost:8000/api/image/${filepath}`, (apiRes) => {
         res.setHeader('Content-Type', apiRes.headers['content-type'] || 'image/png');
         apiRes.pipe(res);
     }).on('error', () => res.status(404).json({ error: 'Not found' }));
 });
 
-app.delete('/api/image/:filename', (req, res) => {
+app.delete('/api/image/*', (req, res) => {
+    const filepath = req.params[0];
     const options = {
         hostname: 'localhost',
         port: 8000,
-        path: `/api/image/${req.params.filename}`,
+        path: `/api/image/${filepath}`,
         method: 'DELETE'
     };
     const proxyReq = http.request(options, (proxyRes) => {

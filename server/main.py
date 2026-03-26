@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 app = FastAPI()
+CONFIG_FILE = "config.json"
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,10 +50,27 @@ class ConfigRequest(BaseModel):
     output_path: str
     api_base: str = "http://localhost:7860"
 
+def load_config():
+    global config
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                loaded = json.load(f)
+                config["output_path"] = loaded.get("output_path", os.path.expanduser("~/Downloads"))
+                config["api_base"] = loaded.get("api_base", "http://localhost:7860")
+        except:
+            pass
+
+def save_config():
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=2)
+
 config = {
     "output_path": os.path.expanduser("~/Downloads"),
     "api_base": "http://localhost:7860"
 }
+
+load_config()
 
 @app.get("/api/config")
 async def get_config():
@@ -62,6 +80,7 @@ async def get_config():
 async def update_config(req: ConfigRequest):
     config["output_path"] = req.output_path
     config["api_base"] = req.api_base
+    save_config()
     return {"status": "ok", "config": config}
 
 @app.get("/api/models")
@@ -211,16 +230,16 @@ async def img2img(req: Img2ImgRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/image/{filename}")
-async def get_image(filename: str):
+@app.get("/api/image/{filepath}")
+async def get_image(filepath: str):
     from fastapi.responses import FileResponse
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(config["output_path"], safe_filename)
+    safe_path = os.path.normpath(filepath)
+    full_path = os.path.join(config["output_path"], safe_path)
 
-    if not os.path.exists(filepath):
+    if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Image not found")
 
-    return FileResponse(filepath, media_type="image/png")
+    return FileResponse(full_path, media_type="image/png")
 
 @app.get("/api/images")
 async def list_images():
@@ -229,25 +248,32 @@ async def list_images():
         return []
 
     images = []
-    for f in sorted(Path(output_path).glob("drawthings_*.png"), key=lambda x: x.stat().st_mtime, reverse=True)[:20]:
-        images.append({
-            "filename": f.name,
-            "url": f"/api/image/{f.name}",
-            "created": f.stat().st_ctime
-        })
-    return images
+    image_exts = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+    for f in Path(output_path).rglob('*'):
+        if f.is_file() and f.suffix.lower() in image_exts:
+            rel_path = f.relative_to(output_path)
+            rel_path_str = str(rel_path).replace('\\', '/')
+            images.append({
+                "filename": rel_path_str,
+                "url": f"/api/image/{rel_path_str}",
+                "name": f.name,
+                "created": f.stat().st_ctime,
+                "size": f.stat().st_size
+            })
+    images.sort(key=lambda x: x["created"], reverse=True)
+    return images[:50]
 
-@app.delete("/api/image/{filename}")
-async def delete_image(filename: str):
-    safe_filename = os.path.basename(filename)
-    filepath = os.path.join(config["output_path"], safe_filename)
+@app.delete("/api/image/{filepath}")
+async def delete_image(filepath: str):
+    safe_path = os.path.normpath(filepath)
+    full_path = os.path.join(config["output_path"], safe_path)
 
-    if not os.path.exists(filepath):
+    if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        os.remove(filepath)
-        return {"status": "success", "deleted": safe_filename}
+        os.remove(full_path)
+        return {"status": "success", "deleted": safe_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
