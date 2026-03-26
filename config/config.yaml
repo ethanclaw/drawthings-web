@@ -1,8 +1,8 @@
 app:
   port: 3002
-  backend_url: "http://backend:8002"
 
 backend:
+  host: "host.docker.internal"
   port: 8002
   api_base: "http://host.docker.internal:7860"
 
