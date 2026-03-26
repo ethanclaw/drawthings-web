@@ -853,25 +853,31 @@
                 }).then(r => r.json());
 
                 if (res.job_id) {
+                    activeJobId = res.job_id;
+                    localStorage.setItem('activeJobId', activeJobId);
                     text.textContent = 'Task submitted, processing...';
-                    text.dataset.jobId = res.job_id;
+                    disableGenerateButtons();
                     
                     const pollInterval = setInterval(async () => {
                         const jobRes = await fetch(`/api/job/${res.job_id}`).then(r => r.json());
                         if (jobRes.status === 'completed') {
                             clearInterval(pollInterval);
                             clearInterval(interval);
+                            localStorage.removeItem('activeJobId');
+                            activeJobId = null;
                             fill.style.width = '100%';
                             showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
                             document.getElementById('prompt').value = '';
                             loadGallery();
-                            btn.disabled = false;
+                            enableGenerateButtons();
                             progress.style.display = 'none';
                         } else if (jobRes.status === 'failed') {
                             clearInterval(pollInterval);
                             clearInterval(interval);
+                            localStorage.removeItem('activeJobId');
+                            activeJobId = null;
                             showToast(jobRes.error || t('toast_failed'), 'error');
-                            btn.disabled = false;
+                            enableGenerateButtons();
                             progress.style.display = 'none';
                         } else {
                             text.textContent = `Processing... ${jobRes.status}`;
@@ -1007,24 +1013,31 @@
                 }).then(r => r.json());
 
                 if (res.job_id) {
+                    activeJobId = res.job_id;
+                    localStorage.setItem('activeJobId', activeJobId);
                     text.textContent = 'Task submitted, processing...';
+                    disableGenerateButtons();
                     
                     const pollInterval = setInterval(async () => {
                         const jobRes = await fetch(`/api/job/${res.job_id}`).then(r => r.json());
                         if (jobRes.status === 'completed') {
                             clearInterval(pollInterval);
                             clearInterval(interval);
+                            localStorage.removeItem('activeJobId');
+                            activeJobId = null;
                             fill.style.width = '100%';
                             showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
                             document.getElementById('prompt2').value = '';
                             loadGallery();
-                            btn.disabled = false;
+                            enableGenerateButtons();
                             progress.style.display = 'none';
                         } else if (jobRes.status === 'failed') {
                             clearInterval(pollInterval);
                             clearInterval(interval);
+                            localStorage.removeItem('activeJobId');
+                            activeJobId = null;
                             showToast(jobRes.error || t('toast_img2img_failed'), 'error');
-                            btn.disabled = false;
+                            enableGenerateButtons();
                             progress.style.display = 'none';
                         } else {
                             text.textContent = `Processing... ${jobRes.status}`;
@@ -1050,9 +1063,109 @@
             }
         }
 
-        loadConfig().then(() => { checkHealth(); loadModels(); applyI18n(); });
+        loadConfig().then(() => { checkHealth(); loadModels(); applyI18n(); checkActiveJob(); });
         loadGallery();
         setInterval(checkHealth, 30000);
+
+        let activeJobId = localStorage.getItem('activeJobId');
+
+        async function checkActiveJob() {
+            if (!activeJobId) return;
+            
+            const jobRes = await fetch(`/api/job/${activeJobId}`).then(r => r.json()).catch(() => null);
+            
+            if (!jobRes || jobRes.status === 'not_found') {
+                localStorage.removeItem('activeJobId');
+                activeJobId = null;
+                enableGenerateButtons();
+                return;
+            }
+
+            if (jobRes.status === 'pending' || jobRes.status === 'processing') {
+                disableGenerateButtons();
+                showJobProgress(activeJobId, jobRes);
+            } else if (jobRes.status === 'completed') {
+                localStorage.removeItem('activeJobId');
+                activeJobId = null;
+                enableGenerateButtons();
+                showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
+                loadGallery();
+            } else if (jobRes.status === 'failed') {
+                localStorage.removeItem('activeJobId');
+                activeJobId = null;
+                enableGenerateButtons();
+                showToast(jobRes.error || t('toast_failed'), 'error');
+            }
+        }
+
+        function showJobProgress(jobId, job) {
+            const btn = document.getElementById('generateBtn');
+            const btn2 = document.getElementById('generateBtn2');
+            const progress = document.getElementById('progressContainer');
+            const progress2 = document.getElementById('progressContainer2');
+            const fill = document.getElementById('progressFill');
+            const fill2 = document.getElementById('progressFill2');
+            const text = document.getElementById('progressText');
+            const text2 = document.getElementById('progressText2');
+            
+            if (progress) { progress.style.display = 'block'; fill.style.width = '50%'; }
+            if (progress2) { progress2.style.display = 'block'; fill2.style.width = '50%'; }
+            if (text) text.textContent = `Processing... ${job.status}`;
+            if (text2) text2.textContent = `Processing... ${job.status}`;
+            if (btn) btn.disabled = true;
+            if (btn2) btn2.disabled = true;
+
+            const pollInterval = setInterval(async () => {
+                const jobRes = await fetch(`/api/job/${jobId}`).then(r => r.json()).catch(() => null);
+                
+                if (!jobRes || jobRes.status === 'not_found') {
+                    clearInterval(pollInterval);
+                    localStorage.removeItem('activeJobId');
+                    activeJobId = null;
+                    enableGenerateButtons();
+                    if (progress) progress.style.display = 'none';
+                    if (progress2) progress2.style.display = 'none';
+                    return;
+                }
+
+                if (jobRes.status === 'completed') {
+                    clearInterval(pollInterval);
+                    localStorage.removeItem('activeJobId');
+                    activeJobId = null;
+                    enableGenerateButtons();
+                    if (progress) progress.style.display = 'none';
+                    if (progress2) progress2.style.display = 'none';
+                    showToast(`${t('toast_success')}: ${jobRes.result.filename}`);
+                    document.getElementById('prompt').value = '';
+                    loadGallery();
+                } else if (jobRes.status === 'failed') {
+                    clearInterval(pollInterval);
+                    localStorage.removeItem('activeJobId');
+                    activeJobId = null;
+                    enableGenerateButtons();
+                    if (progress) progress.style.display = 'none';
+                    if (progress2) progress2.style.display = 'none';
+                    showToast(jobRes.error || t('toast_failed'), 'error');
+                } else {
+                    if (text) text.textContent = `Processing... ${jobRes.status}`;
+                    if (text2) text2.textContent = `Processing... ${jobRes.status}`;
+                }
+            }, 2000);
+        }
+
+        function disableGenerateButtons() {
+            const btn = document.getElementById('generateBtn');
+            const btn2 = document.getElementById('generateBtn2');
+            if (btn) btn.disabled = true;
+            if (btn2) btn2.disabled = true;
+        }
+
+        function enableGenerateButtons() {
+            const btn = document.getElementById('generateBtn');
+            const btn2 = document.getElementById('generateBtn2');
+            if (btn) btn.disabled = false;
+            if (btn2) btn2.disabled = false;
+        }
     </script>
 </body>
 </html>
