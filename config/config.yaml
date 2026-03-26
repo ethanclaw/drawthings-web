@@ -1,5 +1,9 @@
 app:
   port: 3002
+  auth:
+    enabled: true
+    username: "admin"
+    password: "drawthings2024"
 
 backend:
   host: "host.docker.internal"

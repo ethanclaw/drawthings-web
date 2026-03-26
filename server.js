@@ -12,11 +12,37 @@ const config = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8'));
 const PORT = config.app.port;
 const BACKEND_HOST = config.backend.host;
 const BACKEND_PORT = config.backend.port;
+const AUTH_ENABLED = config.app.auth && config.app.auth.enabled;
+const AUTH_USER = config.app.auth ? config.app.auth.username : '';
+const AUTH_PASS = config.app.auth ? config.app.auth.password : '';
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const backendUrl = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
+
+const authMiddleware = (req, res, next) => {
+    if (!AUTH_ENABLED) return next();
+    
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="Draw Things Web"');
+        return res.status(401).send('Authentication required');
+    }
+    
+    const base64Credentials = authHeader.split(' ')[1];
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
+    const [user, pass] = credentials.split(':');
+    
+    if (user === AUTH_USER && pass === AUTH_PASS) {
+        next();
+    } else {
+        res.setHeader('WWW-Authenticate', 'Basic realm="Draw Things Web"');
+        res.status(401).send('Invalid credentials');
+    }
+};
+
+app.use(authMiddleware);
 
 app.get('/api/health', (req, res) => {
     http.get(`${backendUrl}/api/health`, (apiRes) => {
@@ -67,8 +93,8 @@ app.post('/api/config', (req, res) => {
 
 app.get('/api/images', (req, res) => {
     const queryParams = new URLSearchParams(req.query).toString();
-    const path = queryParams ? `/api/images?${queryParams}` : '/api/images';
-    http.get(`${backendUrl}${path}`, (apiRes) => {
+    const apiPath = queryParams ? `/api/images?${queryParams}` : '/api/images';
+    http.get(`${backendUrl}${apiPath}`, (apiRes) => {
         let data = '';
         apiRes.on('data', chunk => data += chunk);
         apiRes.on('end', () => {
@@ -198,4 +224,5 @@ app.get('/api/jobs', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Draw Things Web running at http://localhost:${PORT}`);
     console.log(`FastAPI backend at ${backendUrl}`);
+    if (AUTH_ENABLED) console.log(`Auth enabled: ${AUTH_USER}/********`);
 });
