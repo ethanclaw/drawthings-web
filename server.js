@@ -10,13 +10,12 @@ const CONFIG_PATH = process.env.CONFIG_PATH || path.join(__dirname, 'config', 'c
 const config = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8'));
 
 const PORT = config.app.port;
-const BACKEND_PORT = config.backend.port;
-const API_BASE = config.backend.api_base;
+const BACKEND_URL = config.app.backend_url;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const backendUrl = `http://localhost:${BACKEND_PORT}`;
+const backendUrl = BACKEND_URL;
 
 app.get('/api/health', (req, res) => {
     http.get(`${backendUrl}/api/health`, (apiRes) => {
@@ -195,5 +194,5 @@ app.get('/api/jobs', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Draw Things Web running at http://localhost:${PORT}`);
-    console.log(`FastAPI backend running at http://localhost:${BACKEND_PORT}`);
+    console.log(`FastAPI backend running at ${BACKEND_URL}`);
 });
